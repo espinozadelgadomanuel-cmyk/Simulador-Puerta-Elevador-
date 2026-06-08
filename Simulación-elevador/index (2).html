@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador Puerta de Elevador</title>
+<link rel="stylesheet" href="estilos_elevador.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <img src="te.png" alt="Tec de Monterrey" style="height: 20px; width: auto;">
+    </div>
+    <div>
+      <h1>SIMULADOR DE CONTROL DE LA PUERTA DEL ELEVADOR</h1>
+      <span>Control de Puerta</span>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="status-pill">
+      <div class="dot" id="sys-dot"></div>
+      <span id="sys-status">SISTEMA OK</span>
+    </div>
+    <div class="status-pill">
+      <div class="dot yellow" id="door-dot"></div>
+      <span id="door-status-txt">PUERTA CERRADA</span>
+    </div>
+    <div class="status-pill" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent)">
+      <span id="clock-display">00:00:00</span>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- LEFT: 3D Elevator -->
+  <div class="elevator-section">
+    <div class="section-title">▸ VISTA / MODELO DE ELEVADOR</div>
+    <div class="floor-label" id="fl-label">PISO 1 ↑</div>
+
+    <div class="scene">
+      <div class="elevator-3d">
+        <!-- Floor display -->
+        <div class="floor-display">
+          <span class="floor-arrow" id="dir-arrow">▲</span>
+          <span id="floor-num">01</span>
+          <span class="floor-arrow" style="opacity:.2">▲</span>
+        </div>
+
+        <!-- Interior -->
+        <div class="interior">
+          <div class="ceiling-light"></div>
+          <div class="floor-panel"></div>
+        </div>
+
+        <!-- 3D sides -->
+        <div class="side-left"></div>
+        <div class="top-panel"></div>
+
+        <!-- Frame -->
+        <div class="frame"></div>
+
+        <!-- Doors -->
+        <div class="doors-wrapper">
+          <div class="door-gap"></div>
+
+          <!-- Left door (fixed) -->
+          <div class="door-left">
+            <div class="door-stripe"></div>
+            <div class="door-stripe"></div>
+            <div class="door-panel"></div>
+          </div>
+
+          <!-- Right door (moves left) -->
+          <div class="door-right" id="door-right">
+            <div class="door-stripe"></div>
+            <div class="door-stripe"></div>
+            <div class="door-panel"></div>
+          </div>
+        </div>
+
+        <!-- Photocell beam -->
+        <div class="beam" id="beam"></div>
+
+        <!-- Display on door center -->
+        <div class="door-display" id="door-display">▶◀</div>
+
+        <!-- Wall control panel -->
+        <div class="wall-panel">
+          <div class="call-btn" id="btn-open-door" title="Abrir puerta" onclick="openDoor()">◁▷</div>
+          <div class="call-btn" id="btn-close-door" title="Cerrar puerta" onclick="closeDoor()">▷◁</div>
+          <div style="width:30px;height:1px;background:var(--border)"></div>
+          <div class="call-btn" onclick="goFloor(1)">1</div>
+          <div class="call-btn" onclick="goFloor(2)">2</div>
+          <div class="call-btn" onclick="goFloor(3)">3</div>
+          <div class="call-btn" onclick="goFloor(4)">4</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main controls -->
+    <div class="ctrl-row">
+      <button class="ctrl-btn open" onclick="openDoor()">◁ ABRIR</button>
+      <button class="ctrl-btn stop" onclick="emergencyStop()">⚠ STOP</button>
+      <button class="ctrl-btn close" onclick="closeDoor()">CERRAR ▷</button>
+    </div>
+
+    <!-- Floor selector -->
+    <div class="floor-selector">
+      <span style="font-size:11px;color:var(--muted);letter-spacing:2px;align-self:center;font-family:'Share Tech Mono',monospace;">PISO:</span>
+      <button class="floor-btn active" id="fbtn-1" onclick="goFloor(1)">01</button>
+      <button class="floor-btn" id="fbtn-2" onclick="goFloor(2)">02</button>
+      <button class="floor-btn" id="fbtn-3" onclick="goFloor(3)">03</button>
+      <button class="floor-btn" id="fbtn-4" onclick="goFloor(4)">04</button>
+    </div>
+
+    <div class="ground"></div>
+  </div>
+
+  <!-- RIGHT: Circuit & PLC -->
+  <div class="circuit-section">
+    <div class="panel-header">
+      <div class="panel-title">⚡ Panel de Control &amp; Circuito</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent)">PLC-7200</div>
+    </div>
+
+    <div class="panel-content" id="panel-content">
+
+      <div class="sep"></div>
+
+      <!-- Circuit Diagram -->
+      <div class="circuit-container">
+        <div class="circuit-title">◈ Diagrama de Circuito Eléctrico</div>
+        <svg id="circuit-svg" viewBox="0 0 388 320" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#0f1828" stroke-width="0.5"/>
+            </pattern>
+            <filter id="glow-o">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-b">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <rect width="388" height="320" fill="url(#grid)"/>
+
+          <text x="194" y="16" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#3a4d6a" letter-spacing="3">CIRCUITO CONTROL PUERTA ELEVADOR</text>
+
+          <!-- POWER SUPPLY -->
+          <text x="12" y="42" class="component-label">L1</text>
+          <text x="12" y="52" class="component-value">120V</text>
+          <line id="bus-live" x1="30" y1="55" x2="358" y2="55" class="wire-off"/>
+          <text x="12" y="298" class="component-label">N</text>
+          <line id="bus-neu" x1="30" y1="295" x2="358" y2="295" class="wire-off"/>
+          <text x="12" y="310" class="component-label">GND</text>
+          <line x1="30" y1="308" x2="60" y2="308" stroke="#44cc66" stroke-width="1.5" fill="none"/>
+          <line x1="60" y1="304" x2="60" y2="312" stroke="#44cc66" stroke-width="2" fill="none"/>
+          <line x1="55" y1="312" x2="65" y2="312" stroke="#44cc66" stroke-width="1.5" fill="none"/>
+          <line x1="57" y1="315" x2="63" y2="315" stroke="#44cc66" stroke-width="1" fill="none"/>
+          <line x1="59" y1="318" x2="61" y2="318" stroke="#44cc66" stroke-width=".5" fill="none"/>
+
+          <!-- BRANCH 1: Limit SW Open + Motor Open coil -->
+          <line id="b1-top" x1="60" y1="55" x2="60" y2="75" class="wire-off"/>
+          <rect id="ls-open-box" x="45" y="75" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <line id="ls-open-l" x1="45" y1="85" x2="55" y2="85" class="wire-off"/>
+          <line id="ls-open-r" x1="65" y1="85" x2="75" y2="85" class="wire-off"/>
+          <text x="60" y="83" text-anchor="middle" class="component-label" font-size="7">LS-A</text>
+          <text x="60" y="104" text-anchor="middle" class="component-value">Lím.Abiert</text>
+          <line id="b1-h" x1="75" y1="85" x2="120" y2="85" class="wire-off"/>
+          <rect id="pb-open-box" x="120" y="75" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <line id="pb-open-l" x1="120" y1="85" x2="130" y2="85" class="wire-off"/>
+          <line id="pb-open-r" x1="140" y1="85" x2="150" y2="85" class="wire-off"/>
+          <text x="135" y="83" text-anchor="middle" class="component-label" font-size="7">PB-AB</text>
+          <text x="135" y="104" text-anchor="middle" class="component-value">Pulsador</text>
+          <line id="b1-h2" x1="150" y1="85" x2="200" y2="85" class="wire-off"/>
+          <rect id="seal-box" x="200" y="75" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="215" y="83" text-anchor="middle" class="component-label" font-size="7">CR-A</text>
+          <text x="215" y="104" text-anchor="middle" class="component-value">Sello</text>
+          <line id="b1-h3" x1="230" y1="85" x2="290" y2="85" class="wire-off"/>
+          <circle id="coil-open" cx="308" cy="85" r="14" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+          <text x="308" y="83" text-anchor="middle" class="component-label" font-size="7">M-AB</text>
+          <text x="308" y="92" text-anchor="middle" class="component-value" font-size="6">Motor</text>
+          <line id="b1-bot" x1="308" y1="99" x2="308" y2="295" class="wire-off"/>
+          <circle id="n1" cx="60" cy="55" r="3" class="node-inactive"/>
+
+          <!-- BRANCH 2: Limit SW Close + Motor Close coil -->
+          <line id="b2-top" x1="60" y1="55" x2="60" y2="130" class="wire-off"/>
+          <line id="b2-down" x1="60" y1="130" x2="60" y2="145" class="wire-off"/>
+          <rect id="ls-close-box" x="45" y="145" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="60" y="153" text-anchor="middle" class="component-label" font-size="7">LS-C</text>
+          <text x="60" y="173" text-anchor="middle" class="component-value">Lím.Cerrad</text>
+          <line id="ls-close-l" x1="45" y1="155" x2="55" y2="155" class="wire-off"/>
+          <line id="ls-close-r" x1="65" y1="155" x2="75" y2="155" class="wire-off"/>
+          <line id="b2-h" x1="75" y1="155" x2="120" y2="155" class="wire-off"/>
+          <rect id="ilk-box" x="120" y="145" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="135" y="153" text-anchor="middle" class="component-label" font-size="7">ILK-A</text>
+          <text x="135" y="173" text-anchor="middle" class="component-value">Interlock</text>
+          <line id="ilk-r" x1="150" y1="155" x2="200" y2="155" class="wire-off"/>
+          <rect id="pb-close-box" x="200" y="145" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="215" y="153" text-anchor="middle" class="component-label" font-size="7">PB-CE</text>
+          <text x="215" y="173" text-anchor="middle" class="component-value">Pulsador</text>
+          <line id="pb-close-r" x1="230" y1="155" x2="290" y2="155" class="wire-off"/>
+          <circle id="coil-close" cx="308" cy="155" r="14" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+          <text x="308" y="153" text-anchor="middle" class="component-label" font-size="7">M-CE</text>
+          <text x="308" y="162" text-anchor="middle" class="component-value" font-size="6">Motor</text>
+          <line id="b2-bot" x1="308" y1="169" x2="308" y2="295" class="wire-off"/>
+
+          <!-- BRANCH 3: Safety Circuit -->
+          <line id="b3-top" x1="60" y1="55" x2="60" y2="200" class="wire-off"/>
+          <line id="b3-down" x1="60" y1="200" x2="60" y2="215" class="wire-off"/>
+          <rect id="safe-box" x="45" y="215" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="60" y="223" text-anchor="middle" class="component-label" font-size="7">SE-01</text>
+          <text x="60" y="243" text-anchor="middle" class="component-value">Borde Seg.</text>
+          <line id="safe-l" x1="45" y1="225" x2="55" y2="225" class="wire-off"/>
+          <line id="safe-r" x1="65" y1="225" x2="75" y2="225" class="wire-off"/>
+          <line id="b3-h" x1="75" y1="225" x2="120" y2="225" class="wire-off"/>
+          <rect id="photo-box" x="120" y="215" width="30" height="20" fill="none" stroke="#2a3555" stroke-width="1" rx="2"/>
+          <text x="135" y="223" text-anchor="middle" class="component-label" font-size="7">FC-01</text>
+          <text x="135" y="243" text-anchor="middle" class="component-value">Fotocelda</text>
+          <line id="photo-r" x1="150" y1="225" x2="200" y2="225" class="wire-off"/>
+          <circle id="coil-safe" cx="220" cy="225" r="14" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+          <text x="220" y="223" text-anchor="middle" class="component-label" font-size="7">CR-SEG</text>
+          <text x="220" y="232" text-anchor="middle" class="component-value" font-size="6">Relé Seg.</text>
+          <line id="b3-bot" x1="220" y1="239" x2="220" y2="295" class="wire-off"/>
+          <circle id="n2" cx="60" cy="130" r="3" class="node-inactive"/>
+          <circle id="n3" cx="60" cy="200" r="3" class="node-inactive"/>
+
+          <!-- LEGEND -->
+          <rect x="250" y="200" width="130" height="85" fill="#080d18" stroke="#1e2d5a" stroke-width=".5" rx="4"/>
+          <text x="315" y="215" text-anchor="middle" class="component-label" letter-spacing="2">LEYENDA</text>
+          <line x1="260" y1="225" x2="285" y2="225" stroke="#ff6b35" stroke-width="2" fill="none"/>
+          <text x="292" y="228" class="component-value" font-size="8" fill="#8899bb">Línea Viva</text>
+          <line x1="260" y1="240" x2="285" y2="240" stroke="#4488ff" stroke-width="2" fill="none"/>
+          <text x="292" y="243" class="component-value" font-size="8" fill="#8899bb">Neutro</text>
+          <line x1="260" y1="255" x2="285" y2="255" stroke="#ffcc00" stroke-width="1.5" stroke-dasharray="4,2" fill="none"/>
+          <text x="292" y="258" class="component-value" font-size="8" fill="#8899bb">Señal/Control</text>
+          <line x1="260" y1="270" x2="285" y2="270" stroke="#44cc66" stroke-width="1.5" fill="none"/>
+          <text x="292" y="273" class="component-value" font-size="8" fill="#8899bb">Tierra</text>
+
+          <!-- Current flow arrows on live bus when active -->
+          <line id="flow-live" x1="30" y1="55" x2="358" y2="55"
+            stroke="#ff6b35" stroke-width="2.5" fill="none"
+            stroke-dasharray="8 4" opacity="0"
+            style="animation: flowL .6s linear infinite;"/>
+        </svg>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Ladder Logic -->
+      <div class="ladder-title">◈ Diagrama Escalera (Ladder PLC)</div>
+      <svg id="ladder-svg" viewBox="0 0 388 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="388" height="200" fill="#060b14"/>
+
+        <!-- Bus bars -->
+        <line x1="30" y1="20" x2="30" y2="185" stroke="#4488ff" stroke-width="3" fill="none"/>
+        <line x1="358" y1="20" x2="358" y2="185" stroke="#ff6b35" stroke-width="3" fill="none"/>
+        <text x="15" y="14" font-family="'Share Tech Mono',monospace" font-size="9" fill="#4488ff">L</text>
+        <text x="352" y="14" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff6b35">N</text>
+
+        <!-- RUNG 1: OPEN logic -->
+        <line id="r1-main" x1="30" y1="50" x2="358" y2="50" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r1-l1" x1="50" y1="42" x2="50" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r1-r1" x1="70" y1="42" x2="70" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <text x="60" y="38" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">PB_AB</text>
+        <line id="r1-l2" x1="120" y1="42" x2="120" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r1-r2" x1="140" y1="42" x2="140" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <text x="130" y="38" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">CR_AB</text>
+        <line id="r1-l3" x1="190" y1="42" x2="190" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r1-r3" x1="210" y1="42" x2="210" y2="58" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r1-nc" x1="186" y1="58" x2="214" y2="42" stroke="#2a3555" stroke-width="1" fill="none"/>
+        <text x="200" y="38" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">LS_AB</text>
+        <circle id="lad-coil-open" cx="330" cy="50" r="12" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+        <text x="330" y="48" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">M_AB</text>
+        <text x="330" y="57" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#2a3555">Abrir</text>
+        <text x="10" y="52" font-family="'Share Tech Mono',monospace" font-size="8" fill="#2a3555">R1</text>
+
+        <!-- RUNG 2: CLOSE logic -->
+        <line id="r2-main" x1="30" y1="110" x2="358" y2="110" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-l1" x1="50" y1="102" x2="50" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-r1" x1="70" y1="102" x2="70" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <text x="60" y="98" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">PB_CE</text>
+        <line id="r2-l2" x1="120" y1="102" x2="120" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-r2" x1="140" y1="102" x2="140" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-nc" x1="116" y1="118" x2="144" y2="102" stroke="#2a3555" stroke-width="1" fill="none"/>
+        <text x="130" y="98" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">ILK_AB</text>
+        <line id="r2-l3" x1="190" y1="102" x2="190" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-r3" x1="210" y1="102" x2="210" y2="118" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r2-nc2" x1="186" y1="118" x2="214" y2="102" stroke="#2a3555" stroke-width="1" fill="none"/>
+        <text x="200" y="98" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">LS_CE</text>
+        <circle id="lad-coil-close" cx="330" cy="110" r="12" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+        <text x="330" y="108" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">M_CE</text>
+        <text x="330" y="117" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#2a3555">Cerrar</text>
+        <text x="10" y="112" font-family="'Share Tech Mono',monospace" font-size="8" fill="#2a3555">R2</text>
+
+        <!-- RUNG 3: Safety -->
+        <line id="r3-main" x1="30" y1="165" x2="358" y2="165" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r3-l1" x1="50" y1="157" x2="50" y2="173" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r3-r1" x1="70" y1="157" x2="70" y2="173" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <text x="60" y="153" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">SE_01</text>
+        <line id="r3-l2" x1="120" y1="157" x2="120" y2="173" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <line id="r3-r2" x1="140" y1="157" x2="140" y2="173" stroke="#2a3555" stroke-width="1.5" fill="none"/>
+        <text x="130" y="153" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">FC_01</text>
+        <circle id="lad-coil-safe" cx="330" cy="165" r="12" fill="none" stroke="#2a3555" stroke-width="1.5"/>
+        <text x="330" y="163" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a4d6a">CR_SEG</text>
+        <text x="10" y="167" font-family="'Share Tech Mono',monospace" font-size="8" fill="#2a3555">R3</text>
+      </svg>
+
+      <div class="sep"></div>
+
+      <!-- I/O Table -->
+      <div style="padding: 14px 16px 8px;">
+        <div class="circuit-title">◈ Tabla de Entradas / Salidas (I/O)</div>
+      </div>
+      <div class="io-table">
+        <div class="io-row io-header">
+          <span>ADDR</span><span>DESCRIPCIÓN</span><span>ESTADO</span><span>VALOR</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.0</span>
+          <span class="io-name">PB Abrir</span>
+          <span class="io-state-off" id="io-pb-open"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.1</span>
+          <span class="io-name">PB Cerrar</span>
+          <span class="io-state-off" id="io-pb-close"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.2</span>
+          <span class="io-name">Lim. Abierto</span>
+          <span class="io-state-off" id="io-ls-open"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.3</span>
+          <span class="io-name">Lim. Cerrado</span>
+          <span class="io-state-on" id="io-ls-close"><span class="led led-on"></span>ON</span>
+          <span class="io-val">0xFF</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.4</span>
+          <span class="io-name">Borde Seg.</span>
+          <span class="io-state-on" id="io-safe"><span class="led led-on"></span>OK</span>
+          <span class="io-val">0xFF</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">I0.5</span>
+          <span class="io-name">Fotocelda</span>
+          <span class="io-state-on" id="io-photo"><span class="led led-on"></span>LIBRE</span>
+          <span class="io-val">0xFF</span>
+        </div>
+        <div class="io-row" style="border-top:1px solid var(--border);">
+          <span class="io-addr">Q0.0</span>
+          <span class="io-name">Motor Abrir</span>
+          <span class="io-state-off" id="io-m-open"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">Q0.1</span>
+          <span class="io-name">Motor Cerrar</span>
+          <span class="io-state-off" id="io-m-close"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+        <div class="io-row">
+          <span class="io-addr">Q0.2</span>
+          <span class="io-name">Alarm. Seg.</span>
+          <span class="io-state-off" id="io-alarm"><span class="led led-off"></span>OFF</span>
+          <span class="io-val">0x00</span>
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="timer-section">
+        <div class="metric-card">
+          <div class="metric-label">Ciclos Totales</div>
+          <div class="metric-value" id="m-cycles">000</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Estado Puerta</div>
+          <div class="metric-value green" id="m-door-state">CERRADA</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Temporizador</div>
+          <div class="metric-value yellow" id="m-timer">0.0s</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Piso Actual</div>
+          <div class="metric-value" id="m-floor">01</div>
+        </div>
+      </div>
+
+      <!-- Event Log -->
+      <div class="log-section">
+        <div class="log-header">
+          <span>▸ Registro de Eventos</span>
+          <span style="color:var(--green);font-size:10px" id="log-count">0 eventos</span>
+        </div>
+        <div class="log-entries" id="log-entries"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="logica_elevador.js"></script>
+</body>
+</html>

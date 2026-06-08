@@ -1,0 +1,194 @@
+==================================================
+  SIMULADOR DE CONTROL DE PUERTA DE ELEVADOR
+  Documentación Técnica
+==================================================
+
+DESCRIPCIÓN GENERAL
+-------------------
+Este proyecto simula el sistema de control de la puerta de un elevador
+con interfaz visual 3D, diagrama de circuito eléctrico, diagrama
+escalera (Ladder PLC) y tabla de entradas/salidas (I/O).
+
+Desarrollado como herramienta educativa para la comprensión de
+sistemas de control industriales aplicados a elevadores.
+
+--------------------------------------------------
+ARCHIVOS DEL PROYECTO
+--------------------------------------------------
+
+  index.html               → Interfaz completa del simulador
+  estilos_elevador.css     → Hoja de estilos separada
+  logica_elevador.js       → Lógica JavaScript separada
+  simulador_elevador.py    → Simulación equivalente en Python
+  documentacion.txt        → Este archivo
+
+--------------------------------------------------
+ARQUITECTURA DEL SISTEMA
+--------------------------------------------------
+
+  ┌─────────────────────────────────────────────┐
+  │              PANEL IZQUIERDO                │
+  │  Vista 3D del elevador con animación        │
+  │  de puertas, haz de fotocelda y controles  │
+  └─────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────┐
+  │              PANEL DERECHO                  │
+  │  ◈ Diagrama de Circuito Eléctrico (SVG)    │
+  │  ◈ Diagrama Escalera / Ladder PLC (SVG)    │
+  │  ◈ Tabla I/O (Entradas y Salidas)          │
+  │  ◈ Métricas en tiempo real                 │
+  │  ◈ Registro de eventos                     │
+  └─────────────────────────────────────────────┘
+
+--------------------------------------------------
+COMPONENTES DEL CIRCUITO
+--------------------------------------------------
+
+  LS-A    Limit Switch Abierto
+            Detecta cuando la puerta llegó al final de su
+            recorrido en posición abierta. Normalmente cerrado (NC).
+
+  LS-C    Limit Switch Cerrado
+            Detecta cuando la puerta está completamente cerrada.
+            Normalmente cerrado (NC).
+
+  PB-AB   Pulsador Abrir
+            Botón de mando para iniciar apertura de puerta.
+            Contacto normalmente abierto (NO).
+
+  PB-CE   Pulsador Cerrar
+            Botón de mando para iniciar cierre de puerta.
+            Contacto normalmente abierto (NO).
+
+  CR-A    Relé de Sello (Auto-mantenimiento)
+            Mantiene energizado el circuito de apertura incluso
+            después de soltar el pulsador.
+
+  M-AB    Contactor / Motor de Apertura
+            Energiza el motor en dirección de apertura.
+
+  M-CE    Contactor / Motor de Cierre
+            Energiza el motor en dirección de cierre.
+
+  ILK-A   Interlock de Apertura (NC)
+            Contacto del contactor M-AB usado para bloquear el
+            circuito de cierre cuando la apertura está activa.
+            Previene arranque simultáneo (cortocircuito de fase).
+
+  SE-01   Borde de Seguridad
+            Sensor de borde sensible al tacto. Se activa si algo
+            obstruye el borde de la puerta al cerrarse.
+
+  FC-01   Fotocelda
+            Barrera óptica en el umbral de la puerta.
+            Si detecta un objeto, interrumpe el cierre.
+
+  CR-SEG  Relé de Seguridad
+            Se energiza cuando SE-01 y FC-01 están libres.
+            Habilita el circuito de cierre.
+
+--------------------------------------------------
+TABLA DE ENTRADAS / SALIDAS (I/O)
+--------------------------------------------------
+
+  ENTRADAS (Inputs):
+  ┌────────┬──────────────────────┬──────────────────────┐
+  │ ADDR   │ DESCRIPCIÓN          │ CONDICIÓN ACTIVA     │
+  ├────────┼──────────────────────┼──────────────────────┤
+  │ I0.0   │ PB Abrir             │ Pulsador presionado  │
+  │ I0.1   │ PB Cerrar            │ Pulsador presionado  │
+  │ I0.2   │ Límite Abierto       │ Puerta abierta 100%  │
+  │ I0.3   │ Límite Cerrado       │ Puerta cerrada 100%  │
+  │ I0.4   │ Borde de Seguridad   │ Sin obstrucción      │
+  │ I0.5   │ Fotocelda            │ Haz libre            │
+  └────────┴──────────────────────┴──────────────────────┘
+
+  SALIDAS (Outputs):
+  ┌────────┬──────────────────────┬──────────────────────┐
+  │ ADDR   │ DESCRIPCIÓN          │ CONDICIÓN ACTIVA     │
+  ├────────┼──────────────────────┼──────────────────────┤
+  │ Q0.0   │ Motor Abrir          │ Durante apertura     │
+  │ Q0.1   │ Motor Cerrar         │ Durante cierre       │
+  │ Q0.2   │ Alarma de Seguridad  │ Emergencia activa    │
+  └────────┴──────────────────────┴──────────────────────┘
+
+--------------------------------------------------
+DIAGRAMA ESCALERA (LADDER LOGIC)
+--------------------------------------------------
+
+  RUNG 1 — Circuito de Apertura:
+  L ──[PB_AB]──[CR_AB]──[/LS_AB]──────────( M_AB )── N
+               (sello)   (NC)
+
+  RUNG 2 — Circuito de Cierre:
+  L ──[PB_CE]──[/ILK_AB]──[/LS_CE]────────( M_CE )── N
+               (NC)        (NC)
+
+  RUNG 3 — Circuito de Seguridad:
+  L ──[SE_01]──[FC_01]─────────────────────( CR_SEG )── N
+
+  Notas:
+    [XXX]   = Contacto normalmente abierto (NO)
+    [/XXX]  = Contacto normalmente cerrado (NC)
+    ( YYY ) = Bobina de salida
+
+--------------------------------------------------
+SECUENCIA DE OPERACIÓN
+--------------------------------------------------
+
+  APERTURA:
+    1. Operador presiona PB-AB (I0.0 = ON)
+    2. Se energiza M-AB (Q0.0 = ON)
+    3. CR-A sella el circuito (retención)
+    4. Motor abre la puerta
+    5. Al llegar al límite → LS-A activa (I0.2 = ON)
+    6. LS-A (NC) corta el circuito → M-AB se desenergiza
+    7. Puerta queda abierta. Temporizador de espera inicia.
+
+  CIERRE:
+    1. Vence el temporizador (o se presiona PB-CE)
+    2. CR-SEG activo (seguridad OK) habilita el circuito
+    3. Interlock ILK-A (M-AB ya apagado) → permite M-CE
+    4. Se energiza M-CE (Q0.1 = ON)
+    5. Motor cierra la puerta
+    6. Al llegar al límite → LS-C activa (I0.3 = ON)
+    7. LS-C (NC) corta el circuito → M-CE se desenergiza
+    8. Puerta queda cerrada.
+
+  EMERGENCIA:
+    1. Se presiona STOP de emergencia
+    2. Todo el circuito se desenergiza
+    3. Motor se detiene instantáneamente
+    4. Q0.2 = ON (alarma activa)
+    5. El sistema se restablece al presionar STOP nuevamente.
+
+--------------------------------------------------
+PARÁMETROS CONFIGURABLES
+--------------------------------------------------
+
+  Tiempo de Apertura   : 1.0 – 10.0 segundos (default: 3.0)
+  Tiempo de Cierre     : 1.0 – 10.0 segundos (default: 3.0)
+  Tiempo de Espera     : 1.0 – 30.0 segundos (default: 5.0)
+  Velocidad del Motor  : 10 – 100 % (default: 80%)
+
+--------------------------------------------------
+TECNOLOGÍAS UTILIZADAS
+--------------------------------------------------
+
+  Frontend  : HTML5, CSS3, JavaScript (Vanilla)
+  Tipografía: Rajdhani, Share Tech Mono (Google Fonts)
+  Gráficos  : SVG inline (circuito y diagrama ladder)
+  Backend*  : Python 3.x (simulación lógica equivalente)
+
+  * El archivo .py es una simulación de consola independiente
+    que replica la lógica de control sin interfaz gráfica.
+
+--------------------------------------------------
+CRÉDITOS
+--------------------------------------------------
+
+  Institución : Tecnológico de Monterrey
+  Proyecto    : Simulador de Control de Puerta de Elevador
+  Área        : Automatización y Control Industrial
+
+==================================================
